@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistente de Análise</title>
+<style>
+/* Layout: coluna única; cartões de variável à esquerda do fluxo, resultado logo abaixo e atualizado ao vivo */
+:root{--bg:#f4f6f8;--card:#fff;--ink:#17212b;--mute:#5b6875;--line:#d9e0e6;--accent:#0f6d6a;--accent-ink:#fff;--soft:#e3f1f0;--ok:#1b7f4b;--warn:#a65f00;--warnbg:#fff3df;
+--display:Georgia,'Times New Roman',serif;--body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11171c;--card:#1a232a;--ink:#e8eef3;--mute:#9aa8b4;--line:#2d3a44;--accent:#4fc3bd;--accent-ink:#06211f;--soft:#1b3433;--ok:#5fd18e;--warn:#f0b35a;--warnbg:#3a2d17}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#11171c;--card:#1a232a;--ink:#e8eef3;--mute:#9aa8b4;--line:#2d3a44;--accent:#4fc3bd;--accent-ink:#06211f;--soft:#1b3433;--ok:#5fd18e;--warn:#f0b35a;--warnbg:#3a2d17}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body)}
+main{max-width:860px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:16px}
+h1{font:700 1.7rem/1.2 var(--display);margin:0;text-wrap:balance}
+h2{font:700 1.15rem/1.3 var(--display);margin:0 0 8px;text-wrap:balance}
+h3{font:700 .95rem/1.3 var(--body);margin:14px 0 4px;color:var(--accent)}
+.sub{color:var(--mute);margin:4px 0 0}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.step{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.04em;color:var(--accent);text-transform:uppercase;margin-bottom:2px}
+textarea,select,input[type=text],input[type=number]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+textarea{min-height:76px;resize:vertical}
+label{font-size:.82rem;color:var(--mute);display:block;margin-bottom:3px}
+button{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:8px 13px;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button.x{padding:2px 9px;font-size:.85rem}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.vc{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:12px;margin-top:10px;background:var(--bg)}
+.vc .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:700}
+.vc input,.vc select,.vc textarea{background:var(--card)}
+.chk{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--ink);margin:0}
+.chk input{width:auto}
+.rec{background:var(--soft);border-radius:10px;padding:14px}
+.rec b.t{font:700 1.3rem/1.25 var(--display);display:block;margin-top:4px}
+.pill{display:inline-block;font-size:.72rem;padding:1px 8px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font-weight:700}
+ul{margin:4px 0 0;padding-left:20px}li{margin:3px 0}
+.note{background:var(--warnbg);border-left:4px solid var(--warn);padding:8px 12px;border-radius:6px;font-size:.9rem;margin-top:8px}
+.apa{font-family:var(--display);background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:10px 12px;margin-top:4px}
+.plan{min-height:130px}
+sup a{color:var(--accent);text-decoration:none;font-weight:700;padding:0 1px}
+ol.refs{font-size:.84rem;padding-left:22px}ol.refs li{margin:5px 0}ol.refs a{color:var(--accent);word-break:break-all}
+.sw{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.85rem;color:var(--mute)}
+.hide{display:none}
+footer{color:var(--mute);font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Analysis Assistant</h1>
+<p class="sub">Describe your research question and how each variable is measured. No dataset and no sample size needed: the assistant recommends the statistical test, lists the assumptions to check, drafts your analysis plan, and cites the literature behind each choice.</p>
+</header>
+
+<section>
+<span class="step">Step 1</span>
+<h2>Your hypothesis</h2>
+<label for="hyp">State the research question or hypothesis</label>
+<textarea id="hyp" placeholder="e.g., Compared with usual care, the intervention lowers HbA1c at 12 weeks."></textarea>
+<div class="grid" style="margin-top:10px">
+<div><label for="intent">What do you want to know?</label>
+<select id="intent">
+<option value="auto">Let the assistant infer</option>
+<option value="diff">Compare groups or time points</option>
+<option value="rel">Association between variables</option>
+<option value="pred">Predict an outcome</option>
+<option value="agree">Rater agreement or reliability</option>
+</select></div>
+<div><label for="style">Reporting style</label>
+<select id="style"><option value="apa">APA 7 (psychology, social sciences)</option><option value="ama">AMA 11 (JAMA, medical journals)</option></select></div>
+</div>
+<div class="row"><span class="sub">Examples:</span>
+<button class="ghost" type="button" data-ex="rct">Pre/post trial</button>
+<button class="ghost" type="button" data-ex="cor">Correlation</button>
+<button class="ghost" type="button" data-ex="med">Mediation</button>
+<button class="ghost" type="button" data-ex="bin">Yes/no outcome</button>
+<button class="ghost" type="button" data-ex="srv">Time to event</button>
+</div>
+</section>
+
+<section>
+<span class="step">Step 2</span>
+<h2>Your variables</h2>
+<p class="sub">One card per variable. The context field helps decide the measurement level (for example, total scale score versus single item).</p>
+<div id="vars"></div>
+<div class="row"><button id="bAdd" type="button">+ Add variable</button></div>
+</section>
+
+<section>
+<span class="step">Step 3</span>
+<h2>Recommended analysis</h2>
+<div id="out" aria-live="polite"></div>
+</section>
+<footer>&copy; 2026 Tauily Claussen D&rsquo;Escragnolle Taunay, PhD. All rights reserved. Decision-support tool for study planning. It does not replace consultation with a biostatistician, and regulatory submissions should follow the cited primary sources.</footer>
+</main>
+<script>
+'use strict';
+// ---------- Reference library (AMA-style) ----------
+const REFS={
+delacre17:{a:'Delacre M, Lakens D, Leys C.',t:'Why psychologists should by default use Welch\'s t-test instead of Student\'s t-test.',j:'Int Rev Soc Psychol.',y:2017,v:'30(1):92-101',doi:'10.5334/irsp.82'},
+ruxton06:{a:'Ruxton GD.',t:'The unequal variance t-test is an underused alternative to Student\'s t-test and the Mann-Whitney U test.',j:'Behav Ecol.',y:2006,v:'17(4):688-690',doi:'10.1093/beheco/ark016'},
+fagerland12:{a:'Fagerland MW.',t:'t-tests, non-parametric tests, and large studies: a paradox of statistical practice?',j:'BMC Med Res Methodol.',y:2012,v:'12:78',doi:'10.1186/1471-2288-12-78'},
+lumley02:{a:'Lumley T, Diehr P, Emerson S, Chen L.',t:'The importance of the normality assumption in large public health data sets.',j:'Annu Rev Public Health.',y:2002,v:'23:151-169',doi:'10.1146/annurev.publhealth.23.100901.140546'},
+ghasemi12:{a:'Ghasemi A, Zahediasl S.',t:'Normality tests for statistical analysis: a guide for non-statisticians.',j:'Int J Endocrinol Metab.',y:2012,v:'10(2):486-489',doi:'10.5812/ijem.3505'},
+cohen88:{a:'Cohen J.',t:'Statistical Power Analysis for the Behavioral Sciences.',pub:'2nd ed. Lawrence Erlbaum Associates;',y:1988},
+lakens13:{a:'Lakens D.',t:'Calculating and reporting effect sizes to facilitate cumulative science: a practical primer for t-tests and ANOVAs.',j:'Front Psychol.',y:2013,v:'4:863',doi:'10.3389/fpsyg.2013.00863'},
+sullivan12:{a:'Sullivan GM, Feinn R.',t:'Using effect size: or why the P value is not enough.',j:'J Grad Med Educ.',y:2012,v:'4(3):279-282',doi:'10.4300/JGME-D-12-00156.1'},
+hedges81:{a:'Hedges LV.',t:'Distribution theory for Glass\'s estimator of effect size and related estimators.',j:'J Educ Stat.',y:1981,v:'6(2):107-128',doi:'10.3102/10769986006002107'},
+kerby14:{a:'Kerby DS.',t:'The simple difference formula: an approach to teaching nonparametric correlation.',j:'Compr Psychol.',y:2014,v:'3:11.IT.3.1',doi:'10.2466/11.IT.3.1'},
+vickers01:{a:'Vickers AJ, Altman DG.',t:'Analysing controlled trials with baseline and follow up measurements.',j:'BMJ.',y:2001,v:'323(7321):1123-1124',doi:'10.1136/bmj.323.7321.1123'},
+vanbreukelen06:{a:'Van Breukelen GJP.',t:'ANCOVA versus change from baseline had more power in randomized studies and more bias in nonrandomized studies.',j:'J Clin Epidemiol.',y:2006,v:'59(9):920-925',doi:'10.1016/j.jclinepi.2006.02.007'},
+fda23cov:{a:'US Food and Drug Administration.',t:'Adjusting for Covariates in Randomized Clinical Trials for Drugs and Biological Products: Guidance for Industry.',pub:'Center for Drug Evaluation and Research; Center for Biologics Evaluation and Research;',y:2023,url:'https://www.fda.gov/regulatory-information/search-fda-guidance-documents/adjusting-covariates-randomized-clinical-trials-drugs-and-biological-products'},
+fda22mult:{a:'US Food and Drug Administration.',t:'Multiple Endpoints in Clinical Trials: Guidance for Industry.',pub:'Center for Drug Evaluation and Research; Center for Biologics Evaluation and Research;',y:2022,url:'https://www.fda.gov/regulatory-information/search-fda-guidance-documents/multiple-endpoints-clinical-trials'},
+ich9:{a:'International Council for Harmonisation.',t:'ICH E9: Statistical Principles for Clinical Trials.',pub:'ICH;',y:1998,url:'https://www.ich.org/page/efficacy-guidelines'},
+bender01:{a:'Bender R, Lange S.',t:'Adjusting for multiple testing: when and how?',j:'J Clin Epidemiol.',y:2001,v:'54(4):343-349',doi:'10.1016/S0895-4356(00)00314-0'},
+holm79:{a:'Holm S.',t:'A simple sequentially rejective multiple test procedure.',j:'Scand J Stat.',y:1979,v:'6(2):65-70'},
+wasserstein16:{a:'Wasserstein RL, Lazar NA.',t:'The ASA statement on p-values: context, process, and purpose.',j:'Am Stat.',y:2016,v:'70(2):129-133',doi:'10.1080/00031305.2016.1154108'},
+consort10:{a:'Schulz KF, Altman DG, Moher D; CONSORT Group.',t:'CONSORT 2010 statement: updated guidelines for reporting parallel group randomised trials.',j:'BMJ.',y:2010,v:'340:c332',doi:'10.1136/bmj.c332'},
+strobe07:{a:'von Elm E, Altman DG, Egger M, Pocock SJ, Gøtzsche PC, Vandenbroucke JP; STROBE Initiative.',t:'The Strengthening the Reporting of Observational Studies in Epidemiology (STROBE) statement: guidelines for reporting observational studies.',j:'Lancet.',y:2007,v:'370(9596):1453-1457',doi:'10.1016/S0140-6736(07)61602-X'},
+apa7:{a:'American Psychological Association.',t:'Publication Manual of the American Psychological Association.',pub:'7th ed. APA;',y:2020},
+ama11:{a:'AMA Manual of Style Committee.',t:'AMA Manual of Style: A Guide for Authors and Editors.',pub:'11th ed. Oxford University Press;',y:2020},
+mannwhitney47:{a:'Mann HB, Whitney DR.',t:'On a test of whether one of two random variables is stochastically larger than the other.',j:'Ann Math Stat.',y:1947,v:'18(1):50-60',doi:'10.1214/aoms/1177730491'},
+wilcoxon45:{a:'Wilcoxon F.',t:'Individual comparisons by ranking methods.',j:'Biometrics Bull.',y:1945,v:'1(6):80-83',doi:'10.2307/3001968'},
+kruskal52:{a:'Kruskal WH, Wallis WA.',t:'Use of ranks in one-criterion variance analysis.',j:'J Am Stat Assoc.',y:1952,v:'47(260):583-621',doi:'10.1080/01621459.1952.10483441'},
+friedman37:{a:'Friedman M.',t:'The use of ranks to avoid the assumption of normality implicit in the analysis of variance.',j:'J Am Stat Assoc.',y:1937,v:'32(200):675-701',doi:'10.1080/01621459.1937.10503522'},
+dunn64:{a:'Dunn OJ.',t:'Multiple comparisons using rank sums.',j:'Technometrics.',y:1964,v:'6(3):241-252',doi:'10.1080/00401706.1964.10490181'},
+games76:{a:'Games PA, Howell JF.',t:'Pairwise multiple comparison procedures with unequal n\'s and/or variances: a Monte Carlo study.',j:'J Educ Stat.',y:1976,v:'1(2):113-125'},
+tukey49:{a:'Tukey JW.',t:'Comparing individual means in the analysis of variance.',j:'Biometrics.',y:1949,v:'5(2):99-114',doi:'10.2307/3001913'},
+greenhouse59:{a:'Greenhouse SW, Geisser S.',t:'On methods in the analysis of profile data.',j:'Psychometrika.',y:1959,v:'24(2):95-112',doi:'10.1007/BF02289823'},
+krueger04:{a:'Krueger C, Tian L.',t:'A comparison of the general linear mixed model and repeated measures ANOVA using a dataset with multiple missing data points.',j:'Biol Res Nurs.',y:2004,v:'6(2):151-157',doi:'10.1177/1099800404267682'},
+bates15:{a:'Bates D, Mächler M, Bolker B, Walker S.',t:'Fitting linear mixed-effects models using lme4.',j:'J Stat Softw.',y:2015,v:'67(1):1-48',doi:'10.18637/jss.v067.i01'},
+nakagawa13:{a:'Nakagawa S, Schielzeth H.',t:'A general and simple method for obtaining R2 from generalized linear mixed-effects models.',j:'Methods Ecol Evol.',y:2013,v:'4(2):133-142',doi:'10.1111/j.2041-210x.2012.00261.x'},
+schober18:{a:'Schober P, Boer C, Schwarte LA.',t:'Correlation coefficients: appropriate use and interpretation.',j:'Anesth Analg.',y:2018,v:'126(5):1763-1768',doi:'10.1213/ANE.0000000000002864'},
+mukaka12:{a:'Mukaka MM.',t:'Statistics corner: a guide to appropriate use of correlation coefficient in medical research.',j:'Malawi Med J.',y:2012,v:'24(3):69-71',url:'https://pmc.ncbi.nlm.nih.gov/articles/PMC3576830'},
+green91:{a:'Green SB.',t:'How many subjects does it take to do a regression analysis?',j:'Multivariate Behav Res.',y:1991,v:'26(3):499-510',doi:'10.1207/s15327906mbr2603_7'},
+harrell15:{a:'Harrell FE Jr.',t:'Regression Modeling Strategies: With Applications to Linear Models, Logistic and Ordinal Regression, and Survival Analysis.',pub:'2nd ed. Springer;',y:2015},
+smith18:{a:'Smith G.',t:'Step away from stepwise.',j:'J Big Data.',y:2018,v:'5:32',doi:'10.1186/s40537-018-0143-6'},
+obrien07:{a:'O\'Brien RM.',t:'A caution regarding rules of thumb for variance inflation factors.',j:'Qual Quant.',y:2007,v:'41(5):673-690',doi:'10.1007/s11135-006-9018-6'},
+langsrud03:{a:'Langs­rud Ø.',t:'ANOVA for unbalanced data: use Type II instead of Type III sums of squares.',j:'Stat Comput.',y:2003,v:'13(2):163-167',doi:'10.1023/A:1023260610025'},
+hayes22:{a:'Hayes AF.',t:'Introduction to Mediation, Moderation, and Conditional Process Analysis: A Regression-Based Approach.',pub:'3rd ed. Guilford Press;',y:2022},
+preacher08:{a:'Preacher KJ, Hayes AF.',t:'Asymptotic and resampling strategies for assessing and comparing indirect effects in multiple mediator models.',j:'Behav Res Methods.',y:2008,v:'40(3):879-891',doi:'10.3758/BRM.40.3.879'},
+zhao10:{a:'Zhao X, Lynch JG Jr, Chen Q.',t:'Reconsidering Baron and Kenny: myths and truths about mediation analysis.',j:'J Consum Res.',y:2010,v:'37(2):197-206',doi:'10.1086/651257'},
+aiken91:{a:'Aiken LS, West SG.',t:'Multiple Regression: Testing and Interpreting Interactions.',pub:'Sage;',y:1991},
+agresti13:{a:'Agresti A.',t:'Categorical Data Analysis.',pub:'3rd ed. Wiley;',y:2013},
+szumilas10:{a:'Szumilas M.',t:'Explaining odds ratios.',j:'J Can Acad Child Adolesc Psychiatry.',y:2010,v:'19(3):227-229',url:'https://pmc.ncbi.nlm.nih.gov/articles/PMC2938757'},
+cochran52:{a:'Cochran WG.',t:'The χ2 test of goodness of fit.',j:'Ann Math Stat.',y:1952,v:'23(3):315-345',doi:'10.1214/aoms/1177729380'},
+mcnemar47:{a:'McNemar Q.',t:'Note on the sampling error of the difference between correlated proportions or percentages.',j:'Psychometrika.',y:1947,v:'12(2):153-157',doi:'10.1007/BF02295996'},
+cochran50:{a:'Cochran WG.',t:'The comparison of percentages in matched samples.',j:'Biometrika.',y:1950,v:'37(3-4):256-266'},
+armitage55:{a:'Armitage P.',t:'Tests for linear trends in proportions and frequencies.',j:'Biometrics.',y:1955,v:'11(3):375-386'},
+peduzzi96:{a:'Peduzzi P, Concato J, Kemper E, Holford TR, Feinstein AR.',t:'A simulation study of the number of events per variable in logistic regression analysis.',j:'J Clin Epidemiol.',y:1996,v:'49(12):1373-1379',doi:'10.1016/S0895-4356(96)00236-3'},
+hosmer13:{a:'Hosmer DW Jr, Lemeshow S, Sturdivant RX.',t:'Applied Logistic Regression.',pub:'3rd ed. Wiley;',y:2013},
+hanley82:{a:'Hanley JA, McNeil BJ.',t:'The meaning and use of the area under a receiver operating characteristic (ROC) curve.',j:'Radiology.',y:1982,v:'143(1):29-36',doi:'10.1148/radiology.143.1.7063747'},
+brant90:{a:'Brant R.',t:'Assessing proportionality in the proportional odds model for ordinal logistic regression.',j:'Biometrics.',y:1990,v:'46(4):1171-1178'},
+mccullagh80:{a:'McCullagh P.',t:'Regression models for ordinal data.',j:'J R Stat Soc Series B.',y:1980,v:'42(2):109-142'},
+kaplan58:{a:'Kaplan EL, Meier P.',t:'Nonparametric estimation from incomplete observations.',j:'J Am Stat Assoc.',y:1958,v:'53(282):457-481',doi:'10.1080/01621459.1958.10501452'},
+cox72:{a:'Cox DR.',t:'Regression models and life-tables.',j:'J R Stat Soc Series B.',y:1972,v:'34(2):187-202',doi:'10.1111/j.2517-6161.1972.tb00899.x'},
+schoenfeld82:{a:'Schoenfeld D.',t:'Partial residuals for the proportional hazards regression model.',j:'Biometrika.',y:1982,v:'69(1):239-241',doi:'10.1093/biomet/69.1.239'},
+royston13:{a:'Royston P, Parmar MKB.',t:'Restricted mean survival time: an alternative to the hazard ratio for the design and analysis of randomized trials with a time-to-event outcome.',j:'BMC Med Res Methodol.',y:2013,v:'13:152',doi:'10.1186/1471-2288-13-152'},
+cameron13:{a:'Cameron AC, Trivedi PK.',t:'Regression Analysis of Count Data.',pub:'2nd ed. Cambridge University Press;',y:2013},
+ferrari04:{a:'Ferrari S, Cribari-Neto F.',t:'Beta regression for modelling rates and proportions.',j:'J Appl Stat.',y:2004,v:'31(7):799-815',doi:'10.1080/0266476042000214501'},
+liang86:{a:'Liang KY, Zeger SL.',t:'Longitudinal data analysis using generalized linear models.',j:'Biometrika.',y:1986,v:'73(1):13-22',doi:'10.1093/biomet/73.1.13'},
+bland86:{a:'Bland JM, Altman DG.',t:'Statistical methods for assessing agreement between two methods of clinical measurement.',j:'Lancet.',y:1986,v:'1(8476):307-310',doi:'10.1016/S0140-6736(86)90837-8'},
+bland99:{a:'Bland JM, Altman DG.',t:'Measuring agreement in method comparison studies.',j:'Stat Methods Med Res.',y:1999,v:'8(2):135-160',doi:'10.1177/096228029900800204'},
+koo16:{a:'Koo TK, Li MY.',t:'A guideline of selecting and reporting intraclass correlation coefficients for reliability research.',j:'J Chiropr Med.',y:2016,v:'15(2):155-163',doi:'10.1016/j.jcm.2016.02.012'},
+shrout79:{a:'Shrout PE, Fleiss JL.',t:'Intraclass correlations: uses in assessing rater reliability.',j:'Psychol Bull.',y:1979,v:'86(2):420-428',doi:'10.1037/0033-2909.86.2.420'},
+mchugh12:{a:'McHugh ML.',t:'Interrater reliability: the kappa statistic.',j:'Biochem Med (Zagreb).',y:2012,v:'22(3):276-282',doi:'10.11613/BM.2012.031'},
+landis77:{a:'Landis JR, Koch GG.',t:'The measurement of observer agreement for categorical data.',j:'Biometrics.',y:1977,v:'33(1):159-174',doi:'10.2307/2529310'},
+cohen60:{a:'Cohen J.',t:'A coefficient of agreement for nominal scales.',j:'Educ Psychol Meas.',y:1960,v:'20(1):37-46',doi:'10.1177/001316446002000104'},
+cohen68:{a:'Cohen J.',t:'Weighted kappa: nominal scale agreement with provision for scaled disagreement or partial credit.',j:'Psychol Bull.',y:1968,v:'70(4):213-220',doi:'10.1037/h0026256'},
+fleiss71:{a:'Fleiss JL.',t:'Measuring nominal scale agreement among many raters.',j:'Psychol Bull.',y:1971,v:'76(5):378-382',doi:'10.1037/h0031619'},
+gwet08:{a:'Gwet KL.',t:'Computing inter-rater reliability and its variance in the presence of high agreement.',j:'Br J Math Stat Psychol.',y:2008,v:'61(1):29-48',doi:'10.1348/000711006X126600'},
+hayesCoutts20:{a:'Hayes AF, Coutts JJ.',t:'Use omega rather than Cronbach\'s alpha for estimating reliability. But...',j:'Commun Methods Meas.',y:2020,v:'14(1):1-24',doi:'10.1080/19312458.2020.1718629'}
+};
+function fmtRef(r){const loc=r.doi?` doi:<a href="https://doi.org/${r.doi}" target="_blank" rel="noopener">${r.doi}</a>`:(r.url?` <a href="${r.url}" target="_blank" rel="noopener">${r.url}</a>`:'');
+  return r.j?`${r.a} ${r.t} <i>${r.j}</i> ${r.y};${r.v}.${loc}`:`${r.a} <i>${r.t}</i> ${r.pub} ${r.y}.${loc}`}
+function fmtRefPlain(r){return fmtRef(r).replace(/<[^>]+>/g,'')}
+// Replace [@key] markers with numbered citations in order of first appearance
+function cite(html,mode){const order=[];const out=html.replace(/\s?\[@([A-Za-z0-9]+(?:,@[A-Za-z0-9]+)*)\]/g,(m,ks)=>{const nums=ks.split(',@').map(k=>{if(!REFS[k])throw new Error('Missing ref '+k);let i=order.indexOf(k);if(i<0){order.push(k);i=order.length-1}return i+1}).sort((a,b)=>a-b);
+  return mode=='plain'?` [${nums.join(',')}]`:`<sup>${nums.map(n=>`<a href="#ref${n}">${n}</a>`).join(',')}</sup>`});return{out,order}}
+// ---------- Recommendation engine ----------
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const nm=v=>esc(v.name.trim()||'(unnamed)');
+const lv=v=>Math.max(2,parseInt(v.levels)||2);
+function kind(v){if(v.scale=='surv')return'surv';if(v.scale=='ord')return'ord';if(v.scale=='cat')return lv(v)==2?'bin':'nom';return'num'}
+const gtxt=v=>v.cats&&v.cats.trim()?esc(v.cats.trim()):lv(v)+' categories';
+const P={norm:'Approximately normal residuals (Shapiro-Wilk plus a Q-Q plot; in large samples rely on the plot, because tests flag trivial deviations) [@ghasemi12,@lumley02].',lev:'Homogeneity of variance (Levene or Brown-Forsythe).',ind:'Independent observations: no participant contributes more than once.',out:'Extreme values examined before analysis.',lin:'Linear relationship (scatterplot inspection).',homo:'Constant residual variance (residuals-versus-fitted plot).',vif:'No problematic multicollinearity (variance inflation factor, using thresholds with caution) [@obrien07].',sph:'Sphericity (Mauchly test); if violated, apply the Greenhouse-Geisser correction [@greenhouse59].',cov:'Covariate related to the outcome and parallel slopes across groups (no group × covariate interaction).',exp:'Expected cell counts ≥ 5 in most cells (Cochran rule) [@cochran52].'};
+const sfx=(p,s)=>p.replace(/(\s*(\[@[^\]]*\])?\.)$/,' '+s+'$1');
+const SW=(R,Stata,SAS)=>({R,Stata,SAS});
+function R(o){return Object.assign({why:[],assume:[],alt:[],extras:[],warns:[],soft:{}},o)}
+const REP='Report following CONSORT for randomized trials [@consort10] or STROBE for observational studies [@strobe07].';
+
+function agree(V){
+  const v=V.find(x=>x.role=='dv')||V[0],k=v?kind(v):'num';
+  if(k=='num')return R({title:'Intraclass correlation coefficient (ICC) with Bland-Altman plot',why:['The measure is numeric and the question is how closely raters, instruments, or occasions agree, not merely whether they rise and fall together.','Pearson correlation is not a measure of agreement: two raters can correlate perfectly and still differ systematically [@bland86].'],assume:['Choose the ICC form that matches the design (model, single versus mean ratings, consistency versus absolute agreement) and state it [@shrout79,@koo16].','Differences between measurements roughly normal and without a trend across the measurement range (Bland-Altman) [@bland99].'],effect:'ICC with 95% CI. Guideline: < 0.50 poor, 0.50-0.75 moderate, 0.75-0.90 good, > 0.90 excellent [@koo16].',extras:['For internal consistency of a multi-item scale use McDonald\'s omega, with Cronbach\'s alpha as a secondary index [@hayesCoutts20].','Report the standard error of measurement when reliability is the main goal.'],apa:'Agreement was ICC(2,1) = <i>__</i>, 95% CI [__, __], absolute agreement.',soft:SW('psych::ICC(); irr::icc()','icc rating target (or icc, absolute)','PROC MIXED with variance components (no single built-in ICC procedure)'),h0:'H0: ICC = 0 (no agreement beyond chance).',h1:'H1: ICC > 0.'});
+  if(k=='ord')return R({title:'Weighted Cohen kappa',why:['Ordered categories: disagreements between neighboring categories should count less than disagreements between extremes [@cohen68].'],assume:['The same raters classify the same cases, independently.','Mutually exclusive categories.'],effect:'Weighted kappa with 95% CI. Benchmarks of Landis and Koch are common, but interpret them with caution [@landis77,@mchugh12].',extras:['Three or more raters: Fleiss kappa [@fleiss71] or Krippendorff alpha.','Severely unbalanced categories: also report Gwet AC1 [@gwet08].'],apa:'Agreement was weighted κ = <i>__</i>, 95% CI [__, __].',soft:SW('irr::kappa2(weight="squared")','kap (weighted: kapwgt)','PROC FREQ with the AGREE option (WT=FC for weights)'),h0:'H0: κ = 0.',h1:'H1: κ > 0.'});
+  return R({title:'Cohen kappa (two raters) or Fleiss kappa (three or more)',why:['Unordered categories: kappa measures agreement beyond what chance alone would produce [@cohen60,@fleiss71].'],assume:['The same raters rate all cases independently.','Mutually exclusive, exhaustive categories.'],effect:'Kappa with 95% CI, plus percent agreement. With very unbalanced categories, kappa can be low despite high agreement, so also report Gwet AC1 [@mchugh12,@gwet08].',alt:['Krippendorff alpha when data are missing or the number of raters varies.'],apa:'Interrater agreement was κ = <i>__</i>, 95% CI [__, __].',soft:SW('irr::kappa2(); irr::kappam.fleiss()','kap rater1 rater2','PROC FREQ with the AGREE option'),h0:'H0: κ = 0.',h1:'H1: κ > 0.'});
+}
+function mediation(dv,iv,meds){
+  const mm=meds.map(nm).join(', ');
+  return R({title:'Mediation analysis with a bootstrapped indirect effect',why:[`You propose that ${iv?nm(iv):'the explanatory variable'} acts on ${nm(dv)} through ${mm}.`,'The indirect effect (a × b) is tested with a bootstrap confidence interval (about 5,000 resamples), which does not assume a normal sampling distribution for the product [@preacher08,@hayes22].'],assume:['A temporal or theoretical basis for the causal ordering.','No unmeasured confounding of the mediator-outcome relationship (include relevant covariates).','Linear regression assumptions in each model (normal residuals, constant variance).',P.vif],effect:'Standardized indirect effect with 95% bootstrap CI.',alt:['Binary outcome: use logistic regression for paths involving the outcome.','Longitudinal data: cross-lagged panel or structural equation models.'],extras:['A significant total effect is not required before testing mediation; the stepwise Baron-Kenny approach has been superseded by testing the indirect effect directly [@zhao10].','With cross-sectional data, describe results as consistent with mediation rather than proof of causation.'],apa:'The indirect effect of X on Y through M was <i>ab</i> = __, 95% bootstrap CI [__, __]. The direct effect was <i>c′</i> = __, <i>p</i> = __.',soft:SW('lavaan (sem with := terms) or mediation::mediate()','sem (with estat teffects) or the user-written paramed','Hayes PROCESS macro (model 4) for SAS, SPSS, or R'),h0:'H0: the indirect effect = 0.',h1:'H1: the indirect effect ≠ 0.'});
+}
+function moderation(dv,iv,mods){
+  const mo=mods.map(nm).join(', ');
+  return R({title:'Moderation: regression with an interaction term',why:[`You ask whether the effect of ${iv?nm(iv):'X'} on ${nm(dv)} changes with ${mo}.`,'Moderation is tested by the product of the predictor and the moderator. If it is significant, describe the effect at levels of the moderator [@aiken91,@hayes22].'],assume:['Mean-center numeric predictors before forming the product [@aiken91].',P.lin,P.homo,P.vif],effect:'Change in R² for the interaction term, and simple slopes (−1 SD, mean, +1 SD) with 95% CIs.',alt:['If predictor and moderator are both categorical: factorial ANOVA, interpreting the interaction.'],extras:['Use the Johnson-Neyman technique to show the region of significance [@hayes22].','Interactions usually need larger samples than main effects.'],apa:'The X × M interaction was significant, <i>b</i> = __, <i>t</i>(__) = __, <i>p</i> = __, Δ<i>R</i>² = __.',soft:SW('lm(y ~ x*m); interactions::sim_slopes()','regress y c.x##c.m, then margins','PROC REG or PROC GLM with the product term; PROC PLM for slices; PROCESS model 1'),h0:'H0: the interaction coefficient = 0.',h1:'H1: the interaction coefficient ≠ 0.'});
+}
+function recommend(S){
+  const V=S.vars,dvs=V.filter(v=>v.role=='dv'),ivs=V.filter(v=>v.role=='iv'),covs=V.filter(v=>v.role=='cov'),meds=V.filter(v=>v.role=='med'),mods=V.filter(v=>v.role=='mod');
+  if(S.intent=='agree')return agree(V);
+  if(!dvs.length)return{need:'Mark at least one variable as the outcome: the thing you measure to see whether there is an effect.'};
+  const dv=dvs[0],dk=kind(dv),warns=[],rep=!!dv.rep,k=Math.max(2,parseInt(dv.k)||2);
+  if(dvs.length>1)warns.push(`There are ${dvs.length} outcomes. This recommendation addresses <b>${nm(dv)}</b>. For the others, repeat the analysis with a multiplicity adjustment (Holm, or a pre-specified hierarchical testing order) [@holm79,@fda22mult,@bender01], or use MANOVA if the outcomes are conceptually related.`);
+  if(/higher|lower|greater|less|increase|decrease|reduce|improve|worse|better|more .* than/.test(norm(S.hyp||'')))warns.push('Your hypothesis is directional. Two-sided tests are the default; a one-sided test needs a pre-specified justification, and ICH E9 prefers a one-sided level of half the two-sided level [@ich9].');
+  let r;
+  if(meds.length)r=mediation(dv,ivs[0],meds);
+  else if(mods.length)r=moderation(dv,ivs[0],mods);
+  else r=core(dv,dk,ivs,covs,rep,k);
+  r.warns=(r.warns||[]).concat(warns);
+  if(covs.length&&!r.covNote&&!/ANCOVA|regression|model|Cox|GEE/i.test(r.title))r.extras.push(`Covariates were listed (${covs.map(nm).join(', ')}): include them in the model or justify leaving them out.`);
+  return r;
+}
+function core(dv,dk,ivs,covs,rep,k){
+  const D=nm(dv),iv=ivs[0],nI=ivs.length,sub=dv.sub||'score',skew=dv.dist=='skew';
+  const cat=ivs.filter(v=>['bin','nom'].includes(kind(v))),num=ivs.filter(v=>kind(v)=='num'),ord=ivs.filter(v=>kind(v)=='ord');
+  const hasCov=covs.length>0,cn=covs.map(nm).join(', ');
+  const flag=[];
+  if(dk=='num'&&skew)flag.push('You expect a skewed distribution or a ceiling/floor effect: plan the rank-based alternative as a sensitivity analysis, or transform the outcome (log, square root).');
+  if(dk=='num'&&sub=='cont'&&!skew)flag.push('Reaction times, costs, and doses are often right-skewed. If the data confirm this, use a log transformation or rank-based tests.');
+  // ---- Time to event
+  if(dk=='surv')return R({title:nI&&!hasCov&&kind(iv)!='num'?'Kaplan-Meier curves with the log-rank test':'Cox proportional hazards regression',why:[`${D} is time until an event, and some participants may not have had the event by the end of follow-up (censoring). Means and t tests do not handle censoring [@kaplan58,@cox72].`],assume:['Non-informative censoring.','Proportional hazards over time (Schoenfeld residuals) [@schoenfeld82].',P.ind],effect:'Hazard ratio (HR) with 95% CI, and median survival time.',alt:['If hazards are not proportional: restricted mean survival time [@royston13] or accelerated failure time models.'],apa:'The hazard was __ times as high in group A (HR = __, 95% CI [__, __], <i>p</i> = __).',soft:SW('survival::survfit(), survdiff(), coxph()','sts graph, sts test; stset then stcox','PROC LIFETEST (Kaplan-Meier, log-rank); PROC PHREG (Cox)'),h0:'H0: survival curves are equal (HR = 1).',h1:'H1: HR ≠ 1.'});
+  // ---- Numeric outcome
+  if(dk=='num'){
+    if(sub=='count')return R({title:'Generalized linear model for counts (Poisson or negative binomial)',why:[`${D} is a count of events: whole, non-negative, and usually skewed. Normal-theory models fit poorly [@cameron13].`,'Compare Poisson with negative binomial; if the variance far exceeds the mean (overdispersion), prefer negative binomial.'],assume:['Overdispersion checked (dispersion ratio).','Excess zeros checked; if present, consider zero-inflated or hurdle models.',P.ind],effect:'Incidence rate ratio (IRR) with 95% CI.',alt:['High mean counts (above about 10) with few zeros: linear models are often acceptable.','Repeated measures: GEE or a generalized linear mixed model.'],apa:'Group A had a rate __ times that of group B (IRR = __, 95% CI [__, __], <i>p</i> = __).',soft:SW('glm(family=poisson); MASS::glm.nb()','poisson; nbreg','PROC GENMOD with DIST=POISSON or DIST=NEGBIN'),h0:'H0: the rate ratio = 1.',h1:'H1: the rate ratio ≠ 1.'});
+    if(sub=='prop')return R({title:'Beta regression (or logistic model for proportions)',why:[`${D} is a proportion bounded between 0 and 1. Linear models can predict impossible values and violate constant variance [@ferrari04].`],assume:['No values exactly 0 or 1 (otherwise zero-one-inflated beta); if the proportion comes from counts out of a known total, use a binomial model with that total.',P.ind],effect:'Odds ratio, or marginal mean difference, with 95% CI.',alt:['If most values lie well away from the bounds (roughly 0.2 to 0.8), a linear model is usually adequate.'],apa:'The beta regression model showed an effect of X, <i>b</i> = __, <i>z</i> = __, <i>p</i> = __.',soft:SW('betareg::betareg()','betareg; or glm, family(binomial) link(logit) with robust SEs','PROC GLIMMIX with DIST=BETA'),h0:'H0: the coefficient of X = 0.',h1:'H1: the coefficient of X ≠ 0.'});
+    // repeated outcome
+    if(rep){
+      const hasBtw=cat.length>0;
+      if(!hasBtw&&!num.length&&!ord.length){
+        if(k==2)return R({title:'Paired-samples t test',why:[`${D} was measured twice in the same participants. The analysis tests whether the mean of the paired differences is zero.`],assume:['Paired differences (not the raw measures) approximately normal.',P.out,sfx(P.ind,'(across participants)')],effect:'Cohen d for paired data (d<sub>z</sub>) with 95% CI of the mean difference [@lakens13,@cohen88].',alt:['Small sample or clearly skewed differences: Wilcoxon signed-rank test [@wilcoxon45] (effect size: matched-pairs rank-biserial correlation [@kerby14]).'],extras:flag,apa:'Scores changed from <i>M</i> = __ (<i>SD</i> = __) to <i>M</i> = __ (<i>SD</i> = __), <i>t</i>(__) = __, <i>p</i> = __, <i>d</i><sub>z</sub> = __, 95% CI of the difference [__, __].',soft:SW('t.test(paired=TRUE); wilcox.test(paired=TRUE)','ttest y1 == y2; signrank y1 = y2','PROC TTEST with the PAIRED statement'),h0:'H0: the mean paired difference = 0.',h1:'H1: the mean paired difference ≠ 0.'});
+        return R({title:'Repeated-measures ANOVA',why:[`${D} was measured at ${k} time points or conditions in the same participants. The analysis separates between-person variation from variation across occasions.`],assume:[P.sph,'Normal residuals at each occasion.',P.out,'Complete data for every participant (otherwise the analysis drops them).'],effect:'Partial η² (or ω²) with 95% CI [@lakens13].',alt:['With missing data at some occasions: linear mixed model, which retains incomplete participants [@krueger04].','Serious violations: Friedman test [@friedman37].'],extras:flag.concat(['If the omnibus F is significant, follow with paired comparisons using a Holm or Bonferroni adjustment [@holm79].']),apa:'There was an effect of time, <i>F</i>(__, __) = __, <i>p</i> = __, η<sub>p</sub>² = __ (Greenhouse-Geisser corrected where applicable).',soft:SW('afex::aov_ez(); rstatix::anova_test()','anova y subject time, repeated(time)','PROC GLM with a REPEATED statement; or PROC MIXED'),h0:'H0: the means at all occasions are equal.',h1:'H1: at least one occasion differs.'});
+      }
+      if(hasBtw&&nI==1)return R({title:'Mixed ANOVA (group × time)',why:[`${D} is measured at ${k} occasions and participants belong to independent groups (${gtxt(iv)}). The key result is the <b>group × time interaction</b>: do groups change differently over time?`],assume:[P.sph,sfx(P.lev,'(at each occasion)'),'Normal residuals.',P.out],effect:'Partial η² of the interaction, and within-group effect sizes (d<sub>z</sub>) [@lakens13].',alt:['Linear mixed model: preferred with missing data or more than two occasions [@krueger04,@bates15].','In randomized trials with one baseline and one follow-up, ANCOVA of the follow-up adjusted for baseline is usually more powerful than the mixed ANOVA interaction or change scores [@vickers01,@vanbreukelen06,@fda23cov].'],extras:flag.concat(['If the interaction is significant, describe the simple effect of time within each group.']),apa:'The group × time interaction was significant, <i>F</i>(__, __) = __, <i>p</i> = __, η<sub>p</sub>² = __.',soft:SW('afex::aov_ez(between=); lme4::lmer()','mixed y i.group##i.time || id:','PROC MIXED with REPEATED or RANDOM; or PROC GLM'),h0:'H0: change over time is the same in all groups (no interaction).',h1:'H1: change over time differs between groups.'});
+      return R({title:'Linear mixed-effects model',why:[`${D} is measured repeatedly and there are additional predictors or numeric predictors. A mixed model handles correlation among measures from the same person and tolerates missing visits [@krueger04,@bates15].`],assume:['Approximately normal residuals and stable variance.','Random-effects structure justified (at least a random intercept per participant).','Missing data are missing at random conditional on the variables in the model.'],effect:'Coefficients with 95% CIs, and marginal and conditional R² [@nakagawa13].',extras:flag.concat(['For randomized trials, the FDA notes that covariate adjustment improves precision when covariates are prespecified [@fda23cov].']),apa:'The effect of X was <i>b</i> = __, <i>SE</i> = __, <i>t</i>(__) = __, <i>p</i> = __.',soft:SW('lme4::lmer(); lmerTest','mixed y x time || id:','PROC MIXED'),h0:'H0: the fixed-effect coefficients of interest = 0.',h1:'H1: at least one coefficient ≠ 0.'});
+    }
+    // independent observations
+    if(nI==0)return R({title:'Descriptive statistics with 95% CI (or one-sample t test)',why:['Without an explanatory variable there is nothing to compare or associate. Describe the outcome; to compare it with a reference value (for example, a normative score), use a one-sample t test.'],assume:[P.norm],effect:'Cohen d against the reference value [@cohen88].',alt:['Strong skew: one-sample Wilcoxon signed-rank test.'],apa:'The mean was <i>M</i> = __ (<i>SD</i> = __), 95% CI [__, __].',soft:SW('t.test(mu=); summary()','ttest y == value; summarize, detail','PROC TTEST H0=value; PROC UNIVARIATE'),h0:'H0: μ = the reference value.',h1:'H1: μ ≠ the reference value.'});
+    if(nI==1&&kind(iv)=='bin'){
+      if(hasCov)return R({title:'ANCOVA (two-group comparison adjusted for a covariate)',covNote:1,why:[`Compares ${D} between ${gtxt(iv)} while adjusting for ${cn}.`,'If the covariate is the baseline value of the same outcome, this is the most efficient analysis in a randomized trial [@vickers01,@vanbreukelen06,@fda23cov].'],assume:[P.cov,P.norm,P.lev,P.out],effect:'Partial η² and the adjusted mean difference with 95% CI [@lakens13].',alt:['Several or categorical covariates: multiple linear regression.','Serious violations: rank ANCOVA or robust standard errors.'],extras:flag.concat(['Covariates should be prespecified and measured before randomization or exposure; adjusting for post-baseline variables can bias the effect [@fda23cov].']),apa:'Adjusting for '+cn+', the groups differed on '+D+', <i>F</i>(1, __) = __, <i>p</i> = __, η<sub>p</sub>² = __. Adjusted means: __ and __.',soft:SW('car::Anova(lm(y~g+cov), type=3); emmeans::emmeans()','regress y i.group c.cov, then margins group','PROC GLM with LSMEANS'),h0:'H0: the adjusted group means are equal.',h1:'H1: the adjusted group means differ.'});
+      return R({title:'Welch t test for two independent groups',why:[`${D} is numeric and ${nm(iv)} defines two independent groups (${gtxt(iv)}).`,'Welch\'s test does not require equal variances and performs about as well as Student\'s test when variances are equal, so it is a sensible default [@delacre17,@ruxton06].'],assume:[sfx(P.norm,'(within each group)'),P.out,P.ind],effect:'Cohen d, or Hedges g for small samples, with 95% CI of the mean difference [@cohen88,@hedges81,@lakens13].',alt:['Heavily skewed or ordinal data, or very small samples: Mann-Whitney U test [@mannwhitney47] (effect size: rank-biserial correlation [@kerby14]).','In large samples the t test remains reliable despite non-normality [@fagerland12,@lumley02].'],extras:flag,apa:'Group A (<i>M</i> = __, <i>SD</i> = __) differed from group B (<i>M</i> = __, <i>SD</i> = __), <i>t</i>(__) = __, <i>p</i> = __, <i>d</i> = __, 95% CI of the difference [__, __].',soft:SW('t.test(var.equal=FALSE); wilcox.test()','ttest y, by(group) unequal welch; ranksum y, by(group)','PROC TTEST (Satterthwaite line); PROC NPAR1WAY WILCOXON'),h0:`H0: mean ${D} is equal in the two groups.`,h1:'H1: the means differ.'});
+    }
+    if(nI==1&&kind(iv)=='nom'){
+      if(hasCov)return R({title:'ANCOVA (group comparison adjusted for a covariate)',covNote:1,why:[`Compares ${D} across ${lv(iv)} groups while adjusting for ${cn}.`,'When the covariate is the baseline of the same outcome in a randomized trial, ANCOVA is generally the most efficient approach [@vickers01,@fda23cov].'],assume:[P.cov,P.norm,P.lev,P.out],effect:'Partial η²; pairwise comparisons of adjusted means.',alt:['Several or categorical covariates: multiple linear regression.'],extras:flag.concat(['If the group effect is significant, compare pairs with a Holm or Tukey adjustment [@holm79,@tukey49].']),apa:'Adjusting for '+cn+', there was an effect of group, <i>F</i>(__, __) = __, <i>p</i> = __, η<sub>p</sub>² = __.',soft:SW('car::Anova(); emmeans::emmeans()','regress y i.group c.cov, then margins group, pwcompare','PROC GLM with LSMEANS / ADJUST=TUKEY'),h0:'H0: adjusted group means are equal.',h1:'H1: at least one pair differs.'});
+      return R({title:'One-way ANOVA with post hoc comparisons',why:[`${D} is numeric and ${nm(iv)} has ${lv(iv)} independent groups (${gtxt(iv)}). Running all pairwise t tests would inflate the type I error rate [@bender01].`],assume:[sfx(P.norm,'(within each group)'),P.lev,P.out,P.ind],effect:'η² (or ω²) for the omnibus effect; Cohen d for each pair [@lakens13,@cohen88].',alt:['Unequal variances: Welch ANOVA with Games-Howell post hoc [@games76].','Strong skew or ordinal outcome: Kruskal-Wallis test [@kruskal52] with Dunn post hoc [@dunn64].'],extras:flag.concat(['If F is significant: Tukey HSD (equal variances) [@tukey49] or Holm/Bonferroni [@holm79]. For hypotheses planned in advance, use contrasts.']),apa:'There was an effect of group, <i>F</i>(__, __) = __, <i>p</i> = __, η² = __. Tukey comparisons: __.',soft:SW('oneway.test(); aov() + TukeyHSD(); rstatix::games_howell_test()','oneway y group, tabulate; anova y group; pwcompare','PROC GLM (MEANS / WELCH / TUKEY); PROC NPAR1WAY'),h0:`H0: mean ${D} is equal across the ${lv(iv)} groups.`,h1:'H1: at least one group differs.'});
+    }
+    if(nI>=2&&cat.length==nI&&!hasCov)return R({title:`Factorial ANOVA (${ivs.map(v=>lv(v)).join(' × ')})`,why:[`${D} is numeric and there are ${nI} categorical factors (${ivs.map(nm).join(', ')}). Factorial ANOVA tests each main effect and the interactions.`],assume:[P.norm,P.lev,P.out,P.ind],effect:'Partial η² for each effect [@lakens13].',alt:['Unequal variances: robust (HC3) standard errors or a transformation.'],extras:flag.concat(['Interpret the interaction first. If it is significant, main effects can mislead: describe simple effects.','With unequal cell sizes, choose the type of sums of squares deliberately; some statisticians prefer Type II [@langsrud03].']),apa:'There was a main effect of A, <i>F</i>(__, __) = __, <i>p</i> = __, and an A × B interaction, <i>F</i>(__, __) = __, <i>p</i> = __.',soft:SW('car::Anova(lm(y~a*b), type=3)','anova y a##b','PROC GLM; CLASS a b; MODEL y = a|b'),h0:'H0: no main effects and no interaction.',h1:'H1: at least one main effect or the interaction ≠ 0.'});
+    if(nI==1&&kind(iv)=='num'&&!hasCov){
+      const pred=S0.intent=='pred';
+      return R({title:pred?'Simple linear regression':'Pearson correlation (with simple linear regression)',why:[`${D} and ${nm(iv)} are both numeric.`,pred?'You want to predict the outcome: regression gives the slope (change in the outcome per unit of the predictor) and R².':'You want the strength and direction of association. Regression adds the prediction line.'],assume:[P.lin,sfx(P.norm,'(residuals)'),P.homo,P.out],effect:pred?'Slope b with 95% CI, and R².':'r with 95% CI. Rule of thumb: |r| about 0.1 small, 0.3 medium, 0.5 large [@cohen88,@schober18].',alt:['Monotonic but non-linear relationship, outliers, or ordinal variables: Spearman correlation (or Kendall tau-b with many ties) [@mukaka12,@schober18].'],extras:flag.concat(['Correlation does not imply causation.']),apa:'The variables were correlated, <i>r</i>(__) = __, <i>p</i> = __, 95% CI [__, __].',soft:SW('cor.test(); lm()','pwcorr y x, sig; regress y x','PROC CORR; PROC REG'),h0:'H0: ρ = 0.',h1:'H1: ρ ≠ 0.'});
+    }
+    if(nI==1&&kind(iv)=='ord'&&!hasCov)return R({title:'Spearman rank correlation',why:[`${nm(iv)} is ordinal, so order matters and distance between values does not [@mukaka12,@schober18].`],assume:['Monotonic relationship (check a rank plot).',P.ind],effect:'Spearman ρ with 95% CI.',alt:['Many ties and few categories: Kendall tau-b.'],extras:flag,apa:'The rank correlation was ρ<sub>s</sub>(__) = __, <i>p</i> = __.',soft:SW('cor.test(method="spearman")','spearman y x, stats(rho p)','PROC CORR SPEARMAN'),h0:'H0: ρ<sub>s</sub> = 0.',h1:'H1: ρ<sub>s</sub> ≠ 0.'});
+    const all=ivs.concat(covs).map(nm).join(', ');
+    return R({title:'Multiple linear regression',why:[`${D} is numeric and the model has ${nI+covs.length} variables (${all}) of mixed types. Regression estimates each effect while holding the others constant.`,'Categorical variables enter as indicator (dummy) variables.'],assume:[P.lin,sfx(P.norm,'(residuals)'),P.homo,P.vif,P.out],effect:'Unstandardized and standardized coefficients with 95% CIs, adjusted R², and Cohen f² for the block of interest [@cohen88].',alt:['If the aim is group comparison adjusted for numeric covariates: ANCOVA (equivalent model).','Strongly non-normal residuals: robust standard errors or bootstrap.'],extras:flag.concat(['Avoid too many predictors: one guideline is N ≥ 50 + 8 × (number of predictors) for testing the overall model [@green91].','Choose predictors by theory; automated stepwise selection inflates error and biases estimates [@harrell15,@smith18].']),apa:'The model explained __% of the variance, <i>F</i>(__, __) = __, <i>p</i> = __. X had an effect, <i>β</i> = __, <i>p</i> = __.',soft:SW('lm(); car::vif()','regress y x1 x2 i.g; estat vif','PROC REG (VIF option); PROC GLM for categorical terms'),h0:'H0: the coefficients of the predictors of interest = 0.',h1:'H1: at least one ≠ 0.'});
+  }
+  // ---- Ordinal outcome
+  if(dk=='ord'){
+    if(rep){
+      if(!cat.length&&!num.length&&!ord.length)return k==2?R({title:'Wilcoxon signed-rank test',why:[`${D} is ordinal and was measured twice in the same participants [@wilcoxon45].`],assume:['Paired differences symmetric around their median.'],effect:'Matched-pairs rank-biserial correlation, and the median of the differences [@kerby14].',alt:['If symmetry is doubtful: sign test.'],apa:'Scores differed between occasions, <i>W</i> = __, <i>p</i> = __, <i>r</i> = __.',soft:SW('wilcox.test(paired=TRUE)','signrank y1 = y2','PROC UNIVARIATE (Signed Rank line)'),h0:'H0: the median paired difference = 0.',h1:'H1: the median paired difference ≠ 0.'}):R({title:'Friedman test with paired post hoc tests',why:[`${D} is ordinal and was measured at ${k} occasions in the same participants [@friedman37].`],assume:[sfx(P.ind,'(across participants)')],effect:'Kendall W (agreement across occasions).',alt:['Missing data: ordinal mixed model.'],extras:['Post hoc: Wilcoxon signed-rank tests with Holm adjustment [@holm79], or Conover.'],apa:'There was an effect of occasion, χ²(__) = __, <i>p</i> = __, Kendall <i>W</i> = __.',soft:SW('friedman.test(); rstatix::friedman_effsize()','friedman (user-written) or signrank for pairs','PROC FREQ with CMH (rank scores)'),h0:'H0: the distributions at all occasions are equal.',h1:'H1: at least one occasion differs.'});
+      return R({title:'Ordinal mixed model (cumulative logit with a random effect)',why:[`${D} is ordinal, repeatedly measured, with additional explanatory variables [@mccullagh80].`],assume:['Proportional odds across thresholds.'],effect:'Odds ratio with 95% CI.',apa:'The odds ratio was OR = __, 95% CI [__, __].',soft:SW('ordinal::clmm()','meologit','PROC GLIMMIX with DIST=MULTINOMIAL LINK=CUMLOGIT'),h0:'H0: the coefficient = 0.',h1:'H1: the coefficient ≠ 0.'});
+    }
+    if(nI==1&&kind(iv)=='bin'&&!hasCov)return R({title:'Mann-Whitney U test',why:[`${D} is ordinal and there are two independent groups (${gtxt(iv)}). The test compares rank distributions without assuming equal spacing between categories [@mannwhitney47].`],assume:[P.ind,'To interpret as a difference in medians, the two distributions should have similar shapes.'],effect:'Rank-biserial correlation or probability of superiority [@kerby14].',alt:['If the score is a sum of many items and roughly symmetric, a Welch t test is also defensible [@fagerland12].'],apa:'The median of group A (__) differed from that of group B (__), <i>U</i> = __, <i>p</i> = __, <i>r</i> = __.',soft:SW('wilcox.test()','ranksum y, by(group)','PROC NPAR1WAY WILCOXON'),h0:'H0: the distributions are equal in the two groups.',h1:'H1: one distribution tends toward larger values.'});
+    if(nI==1&&kind(iv)=='nom'&&!hasCov)return R({title:'Kruskal-Wallis test with Dunn post hoc',why:[`${D} is ordinal and there are ${lv(iv)} independent groups [@kruskal52].`],assume:[P.ind],effect:'Epsilon-squared (or η² based on H).',alt:['Sum scores that are roughly symmetric: Welch ANOVA.'],extras:['Post hoc: Dunn test with Holm adjustment [@dunn64,@holm79].'],apa:'Groups differed, <i>H</i>(__) = __, <i>p</i> = __, ε² = __.',soft:SW('kruskal.test(); rstatix::dunn_test()','kwallis y, by(group)','PROC NPAR1WAY WILCOXON (Kruskal-Wallis for 3+ groups)'),h0:'H0: the distributions are equal.',h1:'H1: at least one group differs.'});
+    if(nI==1&&['num','ord'].includes(kind(iv))&&!hasCov)return R({title:'Spearman rank correlation',why:[`${D} is ordinal; Spearman uses ranks and requires a monotonic relationship, not a linear one [@mukaka12].`],assume:['Monotonic relationship.',P.ind],effect:'Spearman ρ with 95% CI.',alt:['Kendall tau-b with many ties.'],apa:'ρ<sub>s</sub>(__) = __, <i>p</i> = __.',soft:SW('cor.test(method="spearman")','spearman y x','PROC CORR SPEARMAN'),h0:'H0: ρ<sub>s</sub> = 0.',h1:'H1: ρ<sub>s</sub> ≠ 0.'});
+    return R({title:'Ordinal regression (cumulative logit)',why:[`${D} is ordinal and there are several explanatory variables or covariates [@mccullagh80].`],assume:['Proportional odds (Brant test) [@brant90].',P.vif],effect:'Odds ratio with 95% CI.',alt:['If proportional odds fails: multinomial logistic regression or a partial proportional odds model.'],apa:'Each unit increase in X raised the odds of a higher category by a factor of __ (OR = __, 95% CI [__, __]).',soft:SW('MASS::polr(); ordinal::clm()','ologit','PROC LOGISTIC (cumulative logit is the default for ordinal outcomes)'),h0:'H0: the coefficient = 0.',h1:'H1: the coefficient ≠ 0.'});
+  }
+  // ---- Categorical outcome
+  const bin=dk=='bin';
+  if(rep){
+    if(!cat.length&&!num.length)return bin?(k==2?R({title:'McNemar test',why:[`${D} is yes/no and was measured twice in the same participants [@mcnemar47].`],assume:['Pairs independent across participants.','Enough discordant pairs (b + c ≥ 25); otherwise use the exact version.'],effect:'Odds ratio of the discordant pairs.',apa:'The proportion changed, McNemar χ²(1) = __, <i>p</i> = __.',soft:SW('mcnemar.test()','mcc y1 y2','PROC FREQ with the AGREE option (McNemar)'),h0:'H0: changes in both directions are equally likely.',h1:'H1: changes are asymmetric.'}):R({title:'Cochran Q test with McNemar post hoc',why:[`${D} is yes/no measured at ${k} occasions in the same participants [@cochran50].`],assume:[sfx(P.ind,'(across participants)')],effect:'Differences between proportions.',apa:'Q(__) = __, <i>p</i> = __.',soft:SW('rstatix::cochran_qtest()','not built in; use GEE (xtgee)','PROC FREQ with the CMH option on a stratified table'),h0:'H0: the proportion is equal at all occasions.',h1:'H1: it differs at at least one.'})):R({title:'Generalized estimating equations (GEE)',why:[`${D} is categorical and repeatedly measured [@liang86].`],assume:['A working correlation structure chosen (for example exchangeable); use robust standard errors.'],effect:'Odds ratio with 95% CI.',apa:'OR = __, 95% CI [__, __].',soft:SW('geepack::geeglm()','xtgee, family(binomial) link(logit) corr(exchangeable)','PROC GENMOD with a REPEATED statement'),h0:'H0: the coefficient = 0.',h1:'H1: the coefficient ≠ 0.'});
+    return R({title:bin?'GEE or mixed-effects logistic regression':'Multinomial model for repeated measures',why:[`${D} is categorical and repeatedly measured, with additional predictors [@liang86,@agresti13].`],assume:['A correlation structure or a random effect per participant.'],effect:'Odds ratio with 95% CI.',apa:'OR = __, 95% CI [__, __].',soft:SW('geepack::geeglm(); lme4::glmer(family=binomial)','xtgee; melogit','PROC GENMOD (GEE); PROC GLIMMIX'),h0:'H0: the coefficient = 0.',h1:'H1: the coefficient ≠ 0.'});
+  }
+  if(nI==1&&cat.length==1&&!hasCov){
+    const t2=bin&&kind(iv)=='bin';
+    return R({title:t2?'Chi-square test of independence (or Fisher exact test) for a 2 × 2 table':'Chi-square test of independence',why:[`${D} and ${nm(iv)} are both categorical. The test compares the observed distribution with the one expected if there were no association [@agresti13].`],assume:[P.exp,sfx(P.ind,'(each participant in a single cell)')],effect:t2?'Odds ratio with 95% CI [@szumilas10], plus risk ratio or risk difference, which clinicians often prefer.':'Cramér V, and adjusted standardized residuals to locate the contributing cells.',alt:['Small expected counts: Fisher exact test (Freeman-Halton extension for larger tables).','If one variable is ordinal: Cochran-Armitage test for trend [@armitage55].'],apa:'The variables were associated, χ²(__, <i>N</i> = __) = __, <i>p</i> = __, '+(t2?'OR = __, 95% CI [__, __].':'<i>V</i> = __.'),soft:SW('chisq.test(); fisher.test()','tabulate a b, chi2 exact; cs or cc (epitab)','PROC FREQ with CHISQ, FISHER, and RELRISK options'),h0:'H0: the variables are independent.',h1:'H1: the variables are associated.'});
+  }
+  const mn=!bin;
+  return R({title:mn?'Multinomial logistic regression':'Binary logistic regression',why:[`${D} is categorical${bin?' (two levels)':' (three or more levels)'} and the explanatory variables are numeric, mixed, or multiple. Logistic regression models the odds of each category [@hosmer13].`],assume:['Linearity of the logit for numeric predictors.',P.vif,'Enough events: a common guideline is at least about 10 events of the less frequent category per predictor, although this rule is debated [@peduzzi96].','Influential points examined.'],effect:'Odds ratio with 95% CI [@szumilas10]; calibration and discrimination (area under the ROC curve) if the goal is prediction [@hanley82,@hosmer13].',alt:bin?['For diagnostic questions with one numeric predictor: ROC curve with a cutoff [@hanley82].']:['If the categories are ordered: ordinal regression.'],apa:'The model was significant, χ²(__) = __, <i>p</i> = __. Each unit of X changed the odds by a factor of __ (OR = __, 95% CI [__, __]).',soft:SW('glm(family=binomial); nnet::multinom()','logistic y x1 x2 (binary); mlogit or mprobit (multinomial)','PROC LOGISTIC'),h0:'H0: the coefficients = 0 (OR = 1).',h1:'H1: at least one ≠ 0.'});
+}
+// ---------- Interface ----------
+const $=id=>document.getElementById(id);
+let S0={hyp:'',intent:'auto',style:'apa',vars:[]},uid=0;
+const ROLES=[['dv','Outcome (what is measured)'],['iv','Main explanatory variable (group or predictor)'],['cov','Covariate (adjustment variable)'],['med','Mediator'],['mod','Moderator']];
+const SCALES=[['cat','Categorical (no order)'],['ord','Ordinal (ordered categories, single item)'],['num','Numeric (score or measurement)'],['surv','Time until an event']];
+const SUBS=[['score','Scale or test score (sum of items)'],['cont','Continuous measure (time, weight, dose, lab value)'],['count','Count of events'],['prop','Proportion or percentage']];
+const opt=(a,v)=>a.map(([k,l])=>`<option value="${k}"${k==v?' selected':''}>${l}</option>`).join('');
+function newVar(o){return Object.assign({id:++uid,name:'',role:'iv',scale:'cat',levels:2,cats:'',sub:'score',dist:'unk',rep:false,k:2,ctx:''},o||{})}
+function cards(){
+  $('vars').innerHTML=S0.vars.map((v,i)=>{
+    const cat=v.scale=='cat',num=v.scale=='num';
+    return `<div class="vc" data-i="${i}"><div class="hd"><span>Variable ${i+1}</span><button class="ghost x" type="button" data-del="${i}" aria-label="Remove variable ${i+1}">Remove</button></div>
+<div class="grid">
+<div><label for="n${v.id}">Name</label><input type="text" id="n${v.id}" data-f="name" value="${esc(v.name)}" placeholder="e.g., HbA1c"></div>
+<div><label for="r${v.id}">Role in the study</label><select id="r${v.id}" data-f="role">${opt(ROLES,v.role)}</select></div>
+<div><label for="s${v.id}">Type of variable</label><select id="s${v.id}" data-f="scale">${opt(SCALES,v.scale)}</select></div>
+${cat?`<div><label for="l${v.id}">Number of categories</label><input type="number" id="l${v.id}" data-f="levels" min="2" max="20" value="${v.levels}"></div><div><label for="c${v.id}">Category labels (optional)</label><input type="text" id="c${v.id}" data-f="cats" value="${esc(v.cats)}" placeholder="intervention, usual care"></div>`:''}
+${num?`<div><label for="u${v.id}">Kind of numeric measure</label><select id="u${v.id}" data-f="sub">${opt(SUBS,v.sub)}</select></div><div><label for="d${v.id}">Expected distribution</label><select id="d${v.id}" data-f="dist">${opt([['unk','Unknown or roughly symmetric'],['skew','Skewed, or ceiling/floor effect']],v.dist)}</select></div>`:''}
+${v.role=='dv'&&v.scale!='surv'?`<div><label class="chk" style="margin-top:20px"><input type="checkbox" data-f="rep" ${v.rep?'checked':''}> Measured repeatedly in the same participants</label>${v.rep?`<label for="k${v.id}" style="margin-top:6px">Number of time points or conditions</label><input type="number" id="k${v.id}" data-f="k" min="2" max="20" value="${v.k}">`:''}</div>`:''}
+</div>
+<label for="x${v.id}" style="margin-top:8px">Context (instrument, population, how it is measured)</label>
+<textarea id="x${v.id}" data-f="ctx" style="min-height:52px" placeholder="e.g., hemoglobin A1c (%) from venous blood, adults with type 2 diabetes">${esc(v.ctx)}</textarea></div>`}).join('')||'<p class="sub">No variables yet.</p>';
+}
+const L=a=>a&&a.length?'<ul>'+a.map(x=>`<li>${x}</li>`).join('')+'</ul>':'';
+const strip=h=>h.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+function planText(r){
+  const hyp=S0.hyp.trim();
+  let t=(hyp?`To test the hypothesis that ${hyp.replace(/[.\s]+$/,'').replace(/^./,c=>c.toLowerCase())}, we will use the following analysis: ${r.title}. `:`We will use the following analysis: ${r.title}. `);
+  t+=(r.why[0]||'')+' ';
+  if(r.assume&&r.assume.length)t+='We will verify these assumptions: '+r.assume.map(a=>a.replace(/\.(\s*\[@[^\]]*\])?$/,'$1')).join('; ')+'. ';
+  if(r.alt&&r.alt.length)t+='If assumptions are violated, we will consider: '+r.alt.map(a=>a.replace(/\.(\s*\[@[^\]]*\])?$/,'$1')).join('; ')+'. ';
+  if(r.effect)t+='Effect size: '+r.effect.replace(/\.(\s*\[@[^\]]*\])?$/,'$1')+'. ';
+  t+='The two-sided significance level will be 5% (α = .05), with 95% confidence intervals, interpreted alongside effect sizes rather than P values alone [@wasserstein16,@sullivan12].';
+  const c=cite(t,'plain');
+  return strip(c.out)+'\n\nReferences\n'+c.order.map((k,i)=>`${i+1}. ${fmtRefPlain(REFS[k])}`).join('\n');
+}
+function out(){
+  const r=recommend(S0),el=$('out');
+  if(r.need){el.innerHTML=`<div class="note">${r.need}</div>`;return}
+  const ama=S0.style=='ama',apa=ama?r.apa.replace(/<i>p<\/i>/g,'<i>P</i>'):r.apa;
+  const soft=r.soft&&r.soft.R?`<ul><li><b>R:</b> ${esc(r.soft.R)}</li><li><b>Stata:</b> ${esc(r.soft.Stata)}</li><li><b>SAS:</b> ${esc(r.soft.SAS)}</li></ul>`:'';
+  let h=`<div class="rec"><span class="pill">Recommendation</span><b class="t">${r.title}</b></div>
+${r.warns.map(w=>`<div class="note">${w}</div>`).join('')}
+<h3>Why this analysis</h3>${L(r.why)}
+${r.h0?`<h3>Statistical hypotheses</h3><div>${r.h0}<br>${r.h1}</div>`:''}
+<h3>Assumptions to check</h3>${L(r.assume)}
+${r.alt.length?`<h3>If assumptions fail</h3>${L(r.alt)}`:''}
+<h3>Effect size</h3><div>${r.effect||''}</div>
+${r.extras.length?`<h3>Cautions and add-ons</h3>${L(r.extras)}`:''}
+<h3>Reporting template (fill in the blanks)</h3><div class="apa">${apa}</div>
+<div class="sub" style="font-size:.85rem;margin-top:4px">Format follows ${ama?'AMA Manual of Style [@ama11]':'the APA Publication Manual [@apa7]'}. ${REP}</div>
+<h3>Software commands</h3>${soft}
+<h3>Text for your protocol or statistical analysis plan</h3>
+<label for="plan">Edit as needed, then copy (references included)</label>
+<textarea id="plan" class="plan" style="min-height:220px"></textarea>
+<div class="row"><button id="bCopy" type="button">Copy text</button><span id="cm" class="sub" role="status"></span></div>`;
+  const c=cite(h,'html');
+  el.innerHTML=c.out+`<h3>References</h3><ol class="refs">${c.order.map((k,i)=>`<li id="ref${i+1}">${fmtRef(REFS[k])}</li>`).join('')}</ol>`;
+  $('plan').value=planText(r);
+  $('bCopy').onclick=()=>{const t=$('plan');t.select();let ok=false;try{navigator.clipboard.writeText(t.value);ok=true}catch(e){try{ok=document.execCommand('copy')}catch(_){}}$('cm').textContent=ok?'Copied.':'Select the text and copy it manually.'};
+}
+function all(){cards();out()}
+$('hyp').oninput=e=>{S0.hyp=e.target.value;out()};
+$('intent').onchange=e=>{S0.intent=e.target.value;out()};
+$('style').onchange=e=>{S0.style=e.target.value;out()};
+$('bAdd').onclick=()=>{S0.vars.push(newVar());all()};
+$('vars').addEventListener('input',e=>{const f=e.target.dataset.f;if(!f)return;const v=S0.vars[e.target.closest('.vc').dataset.i];v[f]=e.target.type=='checkbox'?e.target.checked:e.target.value;if(f=='rep')cards();out()});
+$('vars').addEventListener('change',e=>{const f=e.target.dataset.f;if(['role','scale','sub','dist'].includes(f)){const v=S0.vars[e.target.closest('.vc').dataset.i];if(f=='scale'&&e.target.value=='surv')v.rep=false;cards();out()}});
+$('vars').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S0.vars.splice(+d,1);all()}});
+const EX={
+ rct:{hyp:'Compared with usual care, the intervention lowers HbA1c at 12 weeks.',intent:'diff',vars:[{name:'HbA1c',role:'dv',scale:'num',sub:'cont',rep:true,k:2,ctx:'Hemoglobin A1c (%), baseline and 12 weeks'},{name:'Treatment arm',role:'iv',scale:'cat',levels:2,cats:'intervention, usual care',ctx:'Randomized allocation'}]},
+ cor:{hyp:'Higher body mass index is associated with higher systolic blood pressure.',intent:'rel',vars:[{name:'Systolic blood pressure',role:'dv',scale:'num',sub:'cont',ctx:'mm Hg, seated, mean of two readings'},{name:'BMI',role:'iv',scale:'num',sub:'cont',ctx:'kg/m2, measured'}]},
+ med:{hyp:'Perceived stress worsens sleep quality through rumination.',intent:'pred',vars:[{name:'Sleep quality',role:'dv',scale:'num',sub:'score',ctx:'PSQI global score'},{name:'Perceived stress',role:'iv',scale:'num',sub:'score',ctx:'PSS-10 total'},{name:'Rumination',role:'med',scale:'num',sub:'score',ctx:'RRS total'}]},
+ bin:{hyp:'Age and comorbidity burden predict 30-day readmission.',intent:'pred',vars:[{name:'30-day readmission',role:'dv',scale:'cat',levels:2,cats:'yes, no'},{name:'Age',role:'iv',scale:'num',sub:'cont',ctx:'Years at admission'},{name:'Charlson comorbidity index',role:'iv',scale:'num',sub:'score'}]},
+ srv:{hyp:'Patients receiving the new regimen remain relapse-free longer than those on standard therapy.',intent:'diff',vars:[{name:'Time to relapse',role:'dv',scale:'surv',ctx:'Months from randomization; patients without relapse are censored'},{name:'Regimen',role:'iv',scale:'cat',levels:2,cats:'new, standard'}]}
+};
+document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{const x=EX[b.dataset.ex];S0={hyp:x.hyp,intent:x.intent,style:S0.style,vars:x.vars.map(newVar)};$('hyp').value=S0.hyp;$('intent').value=S0.intent;all()});
+document.querySelector('[data-ex=rct]').click();
+</script>
+</body>
+</html>
